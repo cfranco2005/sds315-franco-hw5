@@ -1,0 +1,158 @@
+---
+title: "sds315-franco-hw5"
+author: "Chris Franco"
+date: "2024-02-23"
+output: html_document
+---
+
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE)
+library(mosaic)
+library(tidyverse)
+library(dplyr)
+library(kableExtra)
+```
+
+```{r}
+sim_insider_trading = do(100000) * nflip(n = 2021, prob = 0.024)
+
+ggplot(sim_insider_trading) + 
+  geom_histogram(aes(x = nflip), binwidth = 0.5) +
+  geom_vline(xintercept = 71, color = "red", linetype = "dashed", linewidth = 1) +
+  theme_bw() +
+  labs(title = "Trades Flagged in 10,000 Bootstrapped Samples of 2021 (2.4% Legal Trade Flag Rate)",
+       x = "Number of Flages Trades",
+       y = "Frequency")
+```
+
+The null hypothesis in this scenario is given that there is a 2.4% chance that legal trades are flagged, statistical variation accounts for 71 of the 2021 employees and their trades at the Iron Bank being flagged and there are no insider trading laws being broken. 
+
+The test statistic is the number of employees being flagged for their trades by the SEC's detection algorithm. 
+
+The P-value of the significance test which is the probability of a simulation yielding 71 or more employees flagged given the 2.4% of being flagged is. `r sum(sim_insider_trading >= 71)/100000`. 
+
+Since the p-value is approximately equal to 0.001, it is still possible that the 71 employees of the Iron Bank did not engage in insider trading however since it is extremely small, there is evidence pointing to something nefarious at work and needs an explanation
+
+### Question 2 ### 
+
+```{r}
+sim_gourmet_bites = do(100000) * nflip(n= 50, prob = 0.03)
+
+ggplot(sim_gourmet_bites) +
+  geom_histogram(aes(x = nflip), binwidth = .5) + 
+  theme_bw() + 
+  labs(title = "Trades Flagged in 10,000 Bootstrapped Samples of 2021 (3% Health Code Violation City Rate",
+       x = "Number of 50 Gourmet Bites Restaurants Breaking Health Code",
+       y = "Frequency")
+```
+
+The null hypothesis in this scenario is given that there is a 3% chance a restaurant in a city is charged with health violations even if they truly aren't at fault, statistical variation accounts for 8 of the 50 Gourmet Bites restaurants who failed the health code inspections aren;t a cause of poorly maintained establishments.  
+
+The test statistic is the number out of 50 Gourmet Bites restaurants failing their health inspections.
+
+The P-value of the significance test which is the probability of 100,000 Monte Carlo simulations yielding 8 or more Gourmet Bites restaurants not passing their health inspection given the 3% city rate is. `r sum(sim_insider_trading >= 71)/100000`.  
+
+Since the p-value is less than 0.001 by a rather large margin, it is still possible that the 8 restaurants that were considered vilating health code could have been labled on accident with pure luck however due to the absurdly low p-value of 8 or more restaurants in a sample of 50 being flagegd, the Health Department should pursue further action. 
+
+### Question 3 ###
+
+#### Part A ####
+
+```{r}
+letter_dist <- read_csv("letter_frequencies.csv")
+text <- readLines("brown_sentences.txt")
+sentences <- unlist(strsplit(text, "\n"))
+tib <- tibble(sentence = sentences)
+
+
+calculate_chi_squared = function(sentence) {
+  
+  # Ensure letter frequencies are normalized and sum to 1
+  letter_dist$Probability = letter_dist$Probability / sum(letter_dist$Probability)
+  
+  # Remove non-letters and convert to uppercase
+  clean_sentence = gsub("[^A-Za-z]", "", sentence)
+  clean_sentence = toupper(clean_sentence)
+  
+  # Count the occurrences of each letter in the sentence
+  observed_counts = table(factor(strsplit(clean_sentence, "")[[1]], levels = letter_dist$Letter))
+  
+  # Calculate expected counts
+  total_letters = sum(observed_counts)
+  expected_counts = total_letters * letter_dist$Probability
+  
+  # Chi-squared statistic
+  chi_squared_stat = sum((observed_counts - expected_counts)^2 / expected_counts)
+  
+  return(chi_squared_stat)
+}
+
+```
+
+```{r}
+chi_square_results <- numeric(nrow(tib))
+
+for (i in seq_len(nrow(tib))) {
+  current_sentence <- tib$sentence[i]
+  chi_square_results[i] <- calculate_chi_squared(current_sentence)
+}
+```
+
+```{r}
+ggplot(tib) +
+  geom_histogram(aes(x= chi_square_results)) +
+  theme_bw() + 
+  labs(title = "Chi-Square Statistic Distribution for Human 50,000+ Sentences ~ Based on Set Letter Frequency", 
+       x = "Chi-Square Statistic for a Sentence",
+       y = "Count") + 
+   theme(plot.title = element_text(size = 11))
+```
+
+#### Part B ####
+
+
+```{r}
+test_sentences <- c(
+  "She opened the book and started to read the first chapter, eagerly anticipating what might come next.",
+  "Despite the heavy rain, they decided to go for a long walk in the park, crossing the main avenue by the fountain in the center.",
+  "The museum’s new exhibit features ancient artifacts from various civilizations around the world.",
+  "He carefully examined the document, looking for any clues that might help solve the mystery.",
+  "The students gathered in the auditorium to listen to the guest speaker’s inspiring lecture.",
+  "Feeling vexed after an arduous and zany day at work, she hoped for a peaceful and quiet evening at home, cozying up after a quick dinner with some TV, or maybe a book on her upcoming visit to Auckland.",
+  "The chef demonstrated how to prepare a delicious meal using only locally sourced ingredients, focusing mainly on some excellent dinner recipes from Spain.",
+  "They watched the sunset from the hilltop, marveling at the beautiful array of colors in the sky.",
+  "The committee reviewed the proposal and provided many points of useful feedback to improve the project’s effectiveness.",
+  "Despite the challenges faced during the project, the team worked tirelessly to ensure its successful completion, resulting in a product that exceeded everyone’s expectations."
+)
+
+```
+
+```{r}
+test_sentences_chi2 <- numeric(length(test_sentences))
+for (i in seq_along(test_sentences)) {
+  current_sentence <- test_sentences[i]
+  test_sentences_chi2[i] <- round(calculate_chi_squared(current_sentence), 3)
+}
+
+
+test_sentences_pvalue <- numeric(length(test_sentences_chi2))
+for (i in seq_along(test_sentences_chi2)) {
+  current_chi2 <- test_sentences_chi2[i]
+  test_sentences_pvalue[i] <- round(sum(chi_square_results >= current_chi2) / 56745, 3)
+}
+
+
+final_tibble <- tibble(
+  sentences_10 = test_sentences,
+  result_chi2 = test_sentences_chi2,
+  pvalue_chi2 = test_sentences_pvalue
+)
+
+final_tibble %>%
+  rename(Sentence = sentences_10, `Chi-Square Test Statistic` = result_chi2, `P-Value` = pvalue_chi2) %>%
+  kable(caption = "Determining LLM Watermarks via Letter Frequency Chi Squared Test") %>%
+  kableExtra::kable_classic_2(full_width = FALSE) %>%
+  kable_styling(full_width = FALSE, position = "left")
+```
+
+After computing the chi-squared test on each of the 10 sentences, the one that yields the greatest test statistic is the 6th one. In addition, it also yields the smallest p-value (0.009) meaning that based on the distribution of letter frequencies of thousands of sentences written by humans, the probability of getting higher or equal to the chi-squared statistic of 96.453 is 0.009 based on the letter frequency derived from the Project Gutenberg. 
